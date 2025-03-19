@@ -145,6 +145,17 @@ def obtain_Arnoldi_matrix(A, B, sigma):
        routine that itself performs an LU decomposition.
     '''
 
+    ### TODO ###
+    # Per suggestion, one should compute the below in the following order:
+    #   1. Form the shifted matrix
+    #   2. Compute LU of (1)
+    #   3. Post-multiply (2) by B
+    #   4. Then forward/back solve
+    #
+    #   Why though? Explore this symbolically on paper first.
+    #
+    ############
+
     # first apply the shift
     M = A - sigma*B
     # then invert it ***AGAIN, an LU factorization is obtained underneath***
