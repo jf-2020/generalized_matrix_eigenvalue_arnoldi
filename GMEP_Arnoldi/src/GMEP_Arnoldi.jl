@@ -30,8 +30,10 @@ number is obtained via a random SIGMA matrix.
 
 ASSUMPTION: condition_number > 1
 """
-function generate_random_similarity(m, condition_number,
-                                    ::Type{E}=Float64) where {E}
+function generate_random_similarity(m,
+                                    condition_number,
+                                    ::Type{E}=Float64
+                                    ) where {E}
     # The extra type parameter allows you to generate complex matrices.
     
     U = randn(E, m, m)
@@ -63,8 +65,10 @@ Generate a random (A, B) and C, so that A=BC. The condition number will be used
 to control the similarity matrix as well as B. Note that it'll be helpful to
 have future access to D and S too, so those are returned as well.
 """
-function generate_ABCDS(m, condition_number,
-                        ::Type{E}=Float64) where {E}
+function generate_ABCDS(m,
+                        condition_number,
+                        ::Type{E}=Float64
+                        ) where {E}
     #= TODO
     We probably do want complex eigenvalues.  I think we discussed 2×2 blocks in
     D?
@@ -84,101 +88,82 @@ function generate_ABCDS(m, condition_number,
     return A, B, C, D, S
 end
 
-###############
-### ARNOLDI ###
-###############
+"""
+Given a matrix, A, starting vector, b, and the number of iterations, n, apply
+the Arnoldi iteration per Trefethen p252.
 
-# The types give you access to the type variable E in the body of the function.
+If convergence == True, then measure convergence of ritz pairs every so often.
+We take every so often to mean every other iteration.
+"""
 function arnoldi_iteration(
-    A::AbstractMatrix{E},
-    b::AbstractVector{E},
-    n::Int,
-    convergence = false,
-) where {E<:Number}
-    #= Given a matrix, A, starting vector, b, and the number of iterations, n,
-       apply the Arnoldi iteration per Trefethen p252.
+                            A::AbstractMatrix{E},
+                            b::AbstractVector{E},
+                            n::Int,
+                            convergence = false
+                            ) where {E<:Number}
+    # The types give you access to the type variable E in the body of the function.
 
-       if convergence = True, then measure convergence of ritz pairs every so
-       often. we take every so often to mean every other iteration.
-    =#
-
-    # checksquare will throw an exception if A is not square.
     m = checksquare(A)
-
-    # By default, without a type parameter, zeros produces a double precision
-    # matrix.  If you pass in a complex matrix, you will have mixed types
-    # which might not be a problem, but probably isn't what you want
-    # and can mess with type inference and slow down the code.
-    # Q = zeros(m, n + 1) # zero init Q to store ortho cols via MGS
     Q = zeros(E, m, n + 1) # zero init Q to store ortho cols via MGS
-
-    # dots broadcast and avoid allocating a new vector for b/norm(b).
-    # This will turn into a loop that divides each element of b by the
-    # norm and stores the result in Q[:,1].  The @. macro introduces
-    # broadcasting on every operation.  Unfortunately it broadcasts
-    # norm over b, so it means that it computes the norm of each
-    # element of b.  So I have put dots in the right place manually.
-    Q[:, 1] .= b ./ norm(b)
-
     H = zeros(n + 1, n) # similarly, zero into H to get Hessenberg matrix
-
     ritz_convergence_measurements = []
 
     # normalize first col of Q, the init vector (1st Krylov vect)
+    Q[:, 1] .= b ./ norm(b)
+
+    #= Why this exactly vs the prior broadcasted version?
+
     col1_norm_factor = 1 / norm(Q[:, 1])
     new_col = col1_norm_factor * Q[:, 1]
     Q[:, 1] = new_col
-end
 
-############################
-########## IGNORE ##########
-############################
+    =#
 
-# def arnoldi_iteration(A, b, n, convergence=False):
-
-#     # normalize first col of Q, the init vector (1st Krylov vect)
-#     Q[:, 0] = b / np.linalg.norm(b)
-
-#     # apply MGS per 33.4 p252 Trefethen
-#     for k in range(n):
+    # apply MGS per 33.4 p252 Trefethen
+    for k in 1:n
         
-#         # apply A to previous iterate & project
-#         v = A @ Q[:, k]
-#         for j in range(k+1):
-#             H[j, k] = np.dot(Q[:, j], v)
-#             v -= H[j, k]*Q[:,j]
+        # apply A to previous iterate & project
+        v = A * Q[:, k]
+        for j in 1:k
+            H[j, k] = dot(Q[:, j], v)
+            v -= H[j, k] * Q[:, j]
+        end
 
-#         # avoid blowup
-#         if np.linalg.norm(v) < 1e-12:
-#             break
+        # avoid blowup
+        normed_v = norm(v)
+        if normed_v < 1e-12
+            break
+        end
 
-#         # update Hessenberg & Q
-#         H[k+1, k] = np.linalg.norm(v)
-#         Q[:, k+1] = v / H[k+1, k]
+        # update Hessenberg & QR
+        H[k+1, k] = normed_v
+        Q[:, k+1] .= v ./ H[k+1, k]
 
-#         # measure convergence if required
-#         if convergence and (k%2==0 or k==n):
+        # measure convergence (if required)
+        if convergence && ((k % 2 == 0) || (k == n))
 
-#             current_iterate = []
+            current_iterate = []
 
-#             # first compute the ritz pairs
-#             evals, evects = np.linalg.eig(H[:n,:n])
+            # compute the Ritz pairs
+            eigen_res = eigen(H[:n, :n])
+            evals, evects = eigen_res.values, eigen_res.vectors
 
-#             # zip them up
-#             for i in range(len(evals)):
-#                 ritz_val = evals[i]
-#                 evect = evects[:,i]
-#                 current_iterate.append((ritz_val, evect))
+            # zip them up
+            for i in 1:length(evals)
+                ritz_val = evals[i]
+                evect = evects[:, i]
+                push!(current_iterate, (ritz_val, evect))
+            end
 
-#             ritz_convergence_measurements.append(current_iterate)
+            push!(ritz_convergence_measurements, current_iterate)
+        end
+    end
 
-#     if convergence:
-#         return Q, H[:n, :n], ritz_convergence_measurements
-#     else:
-#         return Q, H[:n, :n]
-
-################################
-########## END IGNORE ##########
-################################
+    if convergence
+        return Q, H[:n, :n], ritz_convergence_measurements
+    else
+        return Q, H[:n, :n]
+    end
+end
 
 end # module GMEP_Arnoldi
