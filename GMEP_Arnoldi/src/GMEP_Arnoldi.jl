@@ -1,7 +1,9 @@
 module GMEP_Arnoldi
 
-#= GMEP_arnoldi_python2julia.jl - attempt at converting GMEP/Arnoldi Python prgm
-                                  to Julia. effectively my "Hello, World!" here!
+#= GMEP_arnoldi_python2julia.jl
+    
+        Convert GMEP/Arnoldi from Python to Julia.
+        This is basically a Julia "Hello, World!".
 
  jf - March '25
 =#
@@ -11,107 +13,74 @@ using LinearAlgebra: checksquare
 using Random
 
 export generate_eigenmatrix,
-    generate_random_similarity, generate_ABCDS, arnoldi_iteration
+       generate_random_similarity,
+       generate_ABCDS,
+       arnoldi_iteration
 
-#######################
-### DATA GENERATION ###
-#######################
-
-function generate_eigenmatrix(dim, min, max)
-    # Generate a random matrix over Z^(2n), capping range of values
-    random_integers = rand(min:max, dim)
-    # return diagm(random_integers)
+"Generate a random matrix over Z^(2n), capping the range of values."
+function generate_eigenmatrix(m, min, max) 
+    random_integers = rand(min:max, m)
     return Diagonal(random_integers)
 end
 
-# I don't love the use of dimension here when there is a very strong
-# mathematical convention to use m for the rows in a matrix.
-# I'd suggest "condition_bound" since this generates a matrix
-# with condition less than this parameter.
-#
-# The extra type parameter allows you to generate complex matrices.
-#
-# function generate_random_similarity(dimension, condition_number)
-function generate_random_similarity(dimension, condition_number, ::Type{E}=Float64) where {E}
-    #= Given a dimension & condition number, generate a random similarity matrix
-       by constructing a random SVD with U & V factors coming from a QR
-       factorization of a random matrix itself. The condition number is obtained
-       via a random SIGMA matrix.
+"""
+Generate a random similarity matrix by constructing a random SVD with U & V
+factors coming from a QR factorization of a random matrix itself. The condition
+number is obtained via a random SIGMA matrix.
 
-       ASSUMPTION: condition_number > 1
-    =#
-
-    # use randn for generating Q.
-    # U = rand(dimension, dimension)
-    # V = rand(dimension, dimension)
-    U = randn(E, dimension, dimension)
-    V = randn(E, dimension, dimension)
+ASSUMPTION: condition_number > 1
+"""
+function generate_random_similarity(m, condition_number,
+                                    ::Type{E}=Float64) where {E}
+    # The extra type parameter allows you to generate complex matrices.
+    
+    U = randn(E, m, m)
+    V = randn(E, m, m)
     U, _ = qr(U)
     V, _ = qr(V)
 
-    ### TODO ###
-    # utilize exponential decay for drawing random values here. apply inverse
-    # sampling to do so.
+    #= TODO
+    utilize exponential decay for drawing random values here. apply inverse
+    sampling to do so.
+    =#
 
     # construct the SIGMA matrix via a uniform distribution
-    samples = rand(Uniform(1, condition_number), dimension)
+    samples = rand(Uniform(1, condition_number), m)
 
     # and for simplicity, push values into Z
     samples = [ceil(i) for i in samples]
-
-    # diagm allocates a matrix and will be slower to multiply with.
-    # sigma = diagm(samples)
+    
     sigma = Diagonal(samples)
 
     # finally calculate the similarity matrix & it's inverse
-    #
-    # Don't use transpose unless you know for sure that the matrix is
-    # real.   ' is more general, more idiomatic, and more concise even for real matrices.
-    # S = U * sigma * transpose(V)
     S = U * sigma * V'
-    # ... via properties of the underlying SVD
 
-    # Avoid inv and the explicit computation of inverses.  It is
-    # unstable in general, although not necessarily a problem for a
-    # Diagonal.  But I would question returning S_inv at all,
-    # since using it in matrix multiplication will be unstable, even
-    # if the inversion of sigma_inv is OK.
-
-    # sigma_inv = inv(sigma)
-    # S_inv = V * sigma_inv * transpose(U)
-
-    # return S, S_inv
-    return S
+    return S, U, sigma, V
 end
 
-function generate_ABCDS(dimension, condition_number, ::Type{E}=Float64) where {E}
-    #= generate random (A, B) and C, so that A=BC, for the matrix eigenvalue
-       problem. the condition number will be used to control the similarity matrix
-       as well as B. note that it'll be helpful to have future access to D and S as
-       well, so those are returned too.
+"""
+Generate a random (A, B) and C, so that A=BC. The condition number will be used
+to control the similarity matrix as well as B. Note that it'll be helpful to
+have future access to D and S too, so those are returned as well.
+"""
+function generate_ABCDS(m, condition_number,
+                        ::Type{E}=Float64) where {E}
+    #= TODO
+    We probably do want complex eigenvalues.  I think we discussed 2×2 blocks in
+    D?
     =#
 
     # first compute the random eigenmatrix (over Z^(2n)), specifying 1 as the
-    # smallest value, the condition number being the highest
-    #
-    # We probably do want complex eigenvalues.  I think we discussed 2×2 blocks in D?
-    #
-    D = generate_eigenmatrix(dimension, 1, condition_number)
-
-    # then compute C via a random similarity transform with specified condition
-    # number
-    # S, S_inv = generate_random_similarity(dimension, condition_number)
-    # C = S * D * S_inv
-    S = generate_random_similarity(dimension, condition_number, E)
+    # smallest value, the condition number being the highest    
+    D = generate_eigenmatrix(m, 1, condition_number)
+    S, _, __, ___ = generate_random_similarity(m, condition_number, E)
     C = (S * D) / S
 
-    # next compute B just like we did S
-    B, _ = generate_random_similarity(dimension, condition_number, E)
-
-    # compute A = BC
+    # then compute B just like we did S
+    B, _, __, ___ = generate_random_similarity(m, condition_number, E)
+    # which yields A
     A = B * C
 
-    # return A, B, C, D, S, S_inv
     return A, B, C, D, S
 end
 
