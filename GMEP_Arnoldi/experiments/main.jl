@@ -18,11 +18,11 @@ function main()
     # generate_ABCDS(5, 100)
 
     ### test arnoldi_iteration ###
-    A = [7 5 3 9;
-         5 4 6 8;
-         3 6 2 5;
-         9 8 5 6]
-    b = [1, 0, 0, 0]
+    A = Float64[7 5 3 9;
+                5 4 6 8;
+                3 6 2 5;
+                9 8 5 6]
+    b = Float64[1, 0, 0, 0]
     arnoldi_iteration(A, b, 3)
 
     # def test_arnoldi_iteration():

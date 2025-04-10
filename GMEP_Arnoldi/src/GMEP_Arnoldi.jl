@@ -9,6 +9,7 @@ module GMEP_Arnoldi
 =#
 
 using Distributions
+using LinearAlgebra
 using LinearAlgebra: checksquare
 using Random
 
@@ -100,24 +101,16 @@ function arnoldi_iteration(
                             b::AbstractVector{E},
                             n::Int,
                             convergence = false
-                            ) where {E<:Number}
+                            ) where {R<:Real, E<:Union{Complex{R}, R}}
     # The types give you access to the type variable E in the body of the function.
 
     m = checksquare(A)
     Q = zeros(E, m, n + 1) # zero init Q to store ortho cols via MGS
-    H = zeros(n + 1, n) # similarly, zero into H to get Hessenberg matrix
-    ritz_convergence_measurements = []
+    H = zeros(E, n + 1, n) # similarly, zero into H to get Hessenberg matrix
+    ritz_convergence_measurements = Vector{Tuple{Complex{R},Vector{Complex{R}}}}[]
 
     # normalize first col of Q, the init vector (1st Krylov vect)
     Q[:, 1] .= b ./ norm(b)
-
-    #= Why this exactly vs the prior broadcasted version?
-
-    col1_norm_factor = 1 / norm(Q[:, 1])
-    new_col = col1_norm_factor * Q[:, 1]
-    Q[:, 1] = new_col
-
-    =#
 
     # apply MGS per 33.4 p252 Trefethen
     for k in 1:n
@@ -131,21 +124,22 @@ function arnoldi_iteration(
 
         # avoid blowup
         normed_v = norm(v)
-        if normed_v < 1e-12
-            break
-        end
+        # if normed_v < 1e-12
+        #     break
+        # end
 
         # update Hessenberg & QR
         H[k+1, k] = normed_v
+
         Q[:, k+1] .= v ./ H[k+1, k]
 
         # measure convergence (if required)
         if convergence && ((k % 2 == 0) || (k == n))
 
-            current_iterate = []
+            current_iterate = Tuple{Complex{R},Vector{Complex{R}}}[]
 
             # compute the Ritz pairs
-            eigen_res = eigen(H[:n, :n])
+            eigen_res = eigen(H[begin:end-1, begin:end])
             evals, evects = eigen_res.values, eigen_res.vectors
 
             # zip them up
@@ -160,9 +154,9 @@ function arnoldi_iteration(
     end
 
     if convergence
-        return Q, H[:n, :n], ritz_convergence_measurements
+        return Q, H[begin:end-1, begin:end], ritz_convergence_measurements
     else
-        return Q, H[:n, :n]
+        return Q, H[begin:end-1, begin:end]
     end
 end
 
