@@ -90,24 +90,31 @@ function generate_ABCDS(m,
 end
 
 """
-Given a matrix, A, starting vector, b, and the number of iterations, n, apply
-the Arnoldi iteration per Trefethen p252.
+Given a matrix pair, (A, B), a starting vector, b, and the number of iterations,
+n, and the shift parameter, sigma, apply the Arnoldi iteration per Trefethen
+p252.
 
 If convergence == True, then measure convergence of ritz pairs every so often.
 We take every so often to mean every other iteration.
 """
 function arnoldi_iteration(
                             A::AbstractMatrix{E},
+                            B::AbstractMatrix{E},
                             b::AbstractVector{E},
                             n::Int,
+                            sigma::Real,
                             convergence = false
                             ) where {R<:Real, E<:Union{Complex{R}, R}}
     # The types give you access to the type variable E in the body of the function.
 
     m = checksquare(A)
+    _ = checksquare(B)
     Q = zeros(E, m, n + 1) # zero init Q to store ortho cols via MGS
     H = zeros(E, n + 1, n) # similarly, zero into H to get Hessenberg matrix
     ritz_convergence_measurements = Vector{Tuple{Complex{R},Vector{Complex{R}}}}[]
+
+    # form the spectral shift
+    M = A - sigma*B
 
     # normalize first col of Q, the init vector (1st Krylov vect)
     Q[:, 1] .= b ./ norm(b)
@@ -118,15 +125,10 @@ function arnoldi_iteration(
         # apply A to previous iterate & project
         v = A * Q[:, k]
         for j in 1:k
-            H[j, k] = dot(Q[:, j], v)
+            # B * Q_n = (A - sigma*B) * Q_n+1 * H_n+1
+            H[j, k] = M * dot(Q[:, j], v)
             v -= H[j, k] * Q[:, j]
         end
-
-        # avoid blowup
-        normed_v = norm(v)
-        # if normed_v < 1e-12
-        #     break
-        # end
 
         # update Hessenberg & QR
         H[k+1, k] = normed_v
@@ -153,11 +155,7 @@ function arnoldi_iteration(
         end
     end
 
-    if convergence
-        return Q, H[begin:end-1, begin:end], ritz_convergence_measurements
-    else
-        return Q, H[begin:end-1, begin:end]
-    end
+    return Q, H[begin:end-1, begin:end], ritz_convergence_measurements
 end
 
 end # module GMEP_Arnoldi
