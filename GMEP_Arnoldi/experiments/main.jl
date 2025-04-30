@@ -47,10 +47,11 @@ function main()
     display(Q)
     display(H)
 
-    evals_H, evects_H = eigvals(H[begin:4, begin:4]), eigvecs(H[begin:4, begin:4])
+    # evals_H, evects_H = eigvals(H[begin:4, begin:4]), eigvecs(H[begin:4, begin:4])
     evals_A, evects_A = eigvals(A), eigvecs(A)
     display(evals_A)
-    display(evals_H)
+    display(evects_A)
+    # display(evals_H)
 
 end
 

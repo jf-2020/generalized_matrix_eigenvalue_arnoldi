@@ -120,7 +120,7 @@ function arnoldi_iteration(
     F = lu(M) # get LU factorization of spec shift
 
     # apply MGS per 33.4 p252 Trefethen
-    for k in 1:m
+    for k in 1:n
         
         # apply M to previous iterate & project
         
@@ -134,7 +134,6 @@ function arnoldi_iteration(
         v = F \ (B * Q[:, k])
         
         for j in 1:k
-            # B * Q_n = (A - sigma*B) * Q_n+1 * H_n+1
             H[j, k] = dot(Q[:, j], v)
             v -= H[j, k] * Q[:, j]
         end
