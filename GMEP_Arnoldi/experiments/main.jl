@@ -26,15 +26,31 @@ function main()
     =#
 
     ### test arnoldi_iteration ###
-    A = Float64[7 5 3 9;
-                5 4 6 8;
-                3 6 2 5;
-                9 8 5 6]
-    b = Float64[1, 0, 0, 0]
-    Q, H, conv = arnoldi_iteration(A, b, 4)
+    A = [7.0 5 3 9;
+        5 4 6 8;
+        3 6 2 5;
+        9 8 5 6]
+    
+    # B = [1.0 2 1 3;
+    #     2 1 2 7;
+    #     1 2 1 4;
+    #     3 7 4 1]
+
+    # B = I(4) # for some reason this doesn't register as a correct subtype of the
+    #            AbstractMatrix type
+    
+    B = [1.0 0 0 0; 0 1 0 0; 0 0 1 0; 0 0 0 1]
+    b = [1.0, 0, 0, 0]
+    sigma = 0.0
+    iters = 4
+    Q, H = arnoldi_iteration(A, B, b, sigma, iters)
     display(Q)
     display(H)
-    println(conv)
+
+    evals_H, evects_H = eigvals(H[begin:4, begin:4]), eigvecs(H[begin:4, begin:4])
+    evals_A, evects_A = eigvals(A), eigvecs(A)
+    display(evals_A)
+    display(evals_H)
 
 end
 

@@ -101,61 +101,73 @@ function arnoldi_iteration(
                             A::AbstractMatrix{E},
                             B::AbstractMatrix{E},
                             b::AbstractVector{E},
-                            n::Int,
                             sigma::Real,
-                            convergence = false
+                            n::Int
+                            #convergence = false
                             ) where {R<:Real, E<:Union{Complex{R}, R}}
     # The types give you access to the type variable E in the body of the function.
 
-    m = checksquare(A)
-    _ = checksquare(B)
+    m = checksquare(A, B)[1] # assumption on regularity: get A's dimension only
     Q = zeros(E, m, n + 1) # zero init Q to store ortho cols via MGS
     H = zeros(E, n + 1, n) # similarly, zero into H to get Hessenberg matrix
-    ritz_convergence_measurements = Vector{Tuple{Complex{R},Vector{Complex{R}}}}[]
+    # ritz_convergence_measurements = Vector{Tuple{Complex{R},Vector{Complex{R}}}}[]
+
+    # normalize first col of Q, the init vector (1st Krylov vect)
+    Q[:, 1] .= b ./ norm(b) # will prepending -> @. <- not perform the broadcast here?
 
     # form the spectral shift
     M = A - sigma*B
-
-    # normalize first col of Q, the init vector (1st Krylov vect)
-    Q[:, 1] .= b ./ norm(b)
+    F = lu(M) # get LU factorization of spec shift
 
     # apply MGS per 33.4 p252 Trefethen
-    for k in 1:n
+    for k in 1:m
         
-        # apply A to previous iterate & project
-        v = A * Q[:, k]
+        # apply M to previous iterate & project
+        
+        #= TODO
+        are we sure F, of "LU type," behaves as expected?
+        
+        e.g., why not U \ (L \ (B * Q_k)) ??
+        
+        and in that case, do we need to unravel any permuted rows?
+        =#
+        v = F \ (B * Q[:, k])
+        
         for j in 1:k
             # B * Q_n = (A - sigma*B) * Q_n+1 * H_n+1
-            H[j, k] = M * dot(Q[:, j], v)
+            H[j, k] = dot(Q[:, j], v)
             v -= H[j, k] * Q[:, j]
         end
 
         # update Hessenberg & QR
-        H[k+1, k] = normed_v
+        H[k+1, k] = norm(v)
 
+        # will prepending -> @. <- not perform the broadcast here?
         Q[:, k+1] .= v ./ H[k+1, k]
 
-        # measure convergence (if required)
-        if convergence && ((k % 2 == 0) || (k == n))
+        # # measure convergence (if required)
+        # if convergence && ((k % 2 == 0) || (k == n))
 
-            current_iterate = Tuple{Complex{R},Vector{Complex{R}}}[]
+        #     current_iterate = Tuple{Complex{R},Vector{Complex{R}}}[]
 
-            # compute the Ritz pairs
-            eigen_res = eigen(H[begin:end-1, begin:end])
-            evals, evects = eigen_res.values, eigen_res.vectors
+        #     # compute the Ritz pairs
+        #     eigen_res = eigen(H[begin:end-1, begin:end])
+        #     evals, evects = eigen_res.values, eigen_res.vectors
 
-            # zip them up
-            for i in 1:length(evals)
-                ritz_val = evals[i]
-                evect = evects[:, i]
-                push!(current_iterate, (ritz_val, evect))
-            end
+        #     # zip them up
+        #     for i in 1:length(evals)
+        #         ritz_val = evals[i]
+        #         evect = evects[:, i]
+        #         push!(current_iterate, (ritz_val, evect))
+        #     end
 
-            push!(ritz_convergence_measurements, current_iterate)
-        end
+        #     push!(ritz_convergence_measurements, current_iterate)
+        # end
     end
 
-    return Q, H[begin:end-1, begin:end], ritz_convergence_measurements
+    # return Q, H[begin:end-1, begin:end]
+    return Q, H
+    # return Q, H[begin:end-1, begin:end], ritz_convergence_measurements
 end
 
 end # module GMEP_Arnoldi
